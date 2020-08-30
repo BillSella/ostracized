@@ -1,5 +1,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Author:  Bill Sella <bill.sella@gmail.com>
+; Updated: 2020-08-30
 ; License: GPL 2.0
 ;
 ; Define global exports for public function calls in this module.
@@ -12,7 +13,7 @@ section .text
 ; function.
 ;
 ; Prototype
-;    int decode_tlv(const char * buffer, ssize_t length, void callback(
+;    int decode_tlv(const char * buffer, ssize_t length, int callback(
 ;       const char * buffer, ssize_t length, uint8_t type, uint64_t tag
 ;    ));
 ;
@@ -26,8 +27,7 @@ section .text
 ;       (rdx) type     - The first byte of the type.
 ;       (rcx) tag      - The full type tag identifier.
 ;
-; Returns zero on success, or negative error code on failure.
-;     0 - Success
+; Returns the result of callback on success, or negative error code on failure.
 ;    -1 - Insufficient data in buffer to decode.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 decode_tlv:
@@ -44,7 +44,8 @@ decode_tlv:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode the type from the buffer.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   movzbq rdx, [rdi]     ; Move the type byte of the buffer into register.
+   movzx  rdx, byte [rdi]; Move the type byte of the buffer into register and
+                         ; zero extend into all high order bits.
    dec    rsi            ; Decrement the buffer length.
    mov    rcx, rdx       ; Copy the first byte into the tag field.
    inc    rdi            ; Increment the buffer offset.
@@ -53,7 +54,7 @@ decode_tlv:
 ; Determine if long tag encoding was used.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    and  rcx, 0x1f      ; Mask the tag component of the first byte to 0x1f.
-   cmp  rdx, 0x1f      ; Compare the tag component of the first byte to 0x1f.
+   cmp  rcx, 0x1f      ; Compare the tag component of the first byte to 0x1f.
    jnz   decode_l      ; If not a long mode, jump to length decoder.
    xor   rcx, rcx      ; Zero the tag identifier.
 
@@ -81,7 +82,7 @@ decode_t_loop:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 decode_l:
    cmp  rsi, 0
-   jle  f_return       ; Return from the call if buffer is empty.
+   jle  e_buffer       ; Return from the call if buffer is empty.
 
    mov   bx, [rdi]     ; Move the first length byte into register.
    dec  rsi            ; Decrement the buffer length.
@@ -92,10 +93,8 @@ decode_l:
    jnz   decode_l_long
 
    mov  rsi, rbx       ; Set the value length.
-	call r8             ; Execute the callback function.
-
-   xor  rax, rax       ; Set return code to success (0).
-   retn                ; Return to caller.
+   call r8             ; Execute the callback function.
+   retn                ; Return to caller with callback return value (rax).
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode long mode length from the buffer.
@@ -104,7 +103,7 @@ decode_l_long:
    xor  rax, rax       ; Zero the length;
 
    mov  rsi, rbx       ; Set the value length.
-	call r8             ; Execute the callback function.
+   call r8             ; Execute the callback function.
 
    xor  rax, rax       ; Set return code to success (0).
    retn                ; Return to caller.
@@ -114,4 +113,4 @@ decode_l_long:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 e_buffer:
    mov  rax, -1        ; Set the error code for insufficient buffer data.
-	retn                ; Return to caller.
+   retn                ; Return to caller.
