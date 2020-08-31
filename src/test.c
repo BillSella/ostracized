@@ -4,6 +4,18 @@
 #include <string.h>
 
 static int callback(const char * value, ssize_t length, uint8_t type, uint64_t tag) {
+	ssize_t i;
+
+	printf("Type:   %02x\n", (unsigned char)(type));
+	printf("Tag:    %lu\n", tag);
+	printf("Length: %ld\n", length);
+	printf("Value:  ");
+
+	for (i = 0; i < length; i++) {
+		printf("%02x ", (unsigned char)(value[i]));
+	}
+	printf("\n");
+
 	return 0;
 }
 
