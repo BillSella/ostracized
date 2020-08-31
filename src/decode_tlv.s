@@ -39,7 +39,7 @@ decode_tlv:
 ; Validate the length of the supplied buffer is greater than zero.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    cmp    rsi, 0          ; Determine if the supplied length is <= 0.
-   jle    e_buffer        ; Return from the call if buffer is empty.
+   jle    .e_buffer       ; Return from the call if buffer is empty.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode the type from the buffer.
@@ -55,15 +55,15 @@ decode_tlv:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    and    rcx, 0x001f     ; Mask the tag component of the first byte to 0x1f.
    cmp    rcx, 0x001f     ; Compare the tag component of the first byte to 0x1f.
-   jnz    decode_l        ; If not a long mode, jump to length decoder.
+   jnz    .length         ; If not a long mode, jump to length decoder.
    xor    rcx, rcx        ; Zero the tag identifier.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode the long format type tag from the buffer one byte at a time.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-decode_t_loop:
+	.t_long:
    cmp    rsi, 0
-   jle    e_buffer        ; Return from the call if buffer is empty.
+   jle    .e_buffer       ; Return from the call if buffer is empty.
    shl    rcx, 7          ; Shift the tag identifier by 7 bits.
 
    movzx  rbx, byte [rdi] ; Move the next long mode type tag byte into register.
@@ -75,14 +75,14 @@ decode_t_loop:
    or     rcx, rbx        ; Merge into the tag identifier.
 
    and    rax, 0x0080     ; Determine if more bytes are used for encoding.
-   jnz    decode_t_loop
+   jnz    .t_long
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode the length from the buffer.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-decode_l:
+	.length:
    cmp    rsi, 0
-   jle    e_buffer        ; Return from the call if buffer is empty.
+   jle    .e_buffer       ; Return from the call if buffer is empty.
 
    movzx  rbx, byte [rdi] ; Move the first length byte into register.
    dec    rsi             ; Decrement the buffer length.
@@ -90,10 +90,10 @@ decode_l:
    inc    rdi             ; Increment the buffer offset.
 
    and    rax, 0x0080     ; Determine if more bytes are used for encoding.
-   jnz    decode_l_long
+   jnz    .length_long
 
    cmp    rsi, rbx        ; Determine if the value length puts off end.
-   jle    e_buffer        ; Insufficient data in buffer for value.
+   jle    .e_buffer       ; Insufficient data in buffer for value.
 
    mov    rsi, rbx        ; Set the value length.
    call   r8              ; Execute the callback function.
@@ -102,7 +102,7 @@ decode_l:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode long mode length from the buffer.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-decode_l_long:
+	.length_long:
    xor    rax, rax        ; Zero the length;
 
    mov    rsi, rbx        ; Set the value length.
@@ -114,6 +114,6 @@ decode_l_long:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Return from the function call
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-e_buffer:
+	.e_buffer:
    mov    rax, -1         ; Set the error code for insufficient buffer data.
    retn                   ; Return to caller.
