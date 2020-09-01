@@ -61,7 +61,7 @@ decode_tlv:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode the long format type tag from the buffer one byte at a time.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	.t_long:
+   .t_long:
    cmp    rsi, 0
    jle    .e_buffer       ; Return from the call if buffer is empty.
    shl    rcx, 7          ; Shift the tag identifier by 7 bits.
@@ -80,7 +80,7 @@ decode_tlv:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode the length from the buffer.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	.length:
+   .length:
    cmp    rsi, 0
    jle    .e_buffer       ; Return from the call if buffer is empty.
 
@@ -102,7 +102,7 @@ decode_tlv:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Decode long mode length from the buffer.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	.length_long:
+   .length_long:
    xor    rax, rax        ; Zero the length;
 
    mov    rsi, rbx        ; Set the value length.
@@ -114,6 +114,6 @@ decode_tlv:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Return from the function call
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	.e_buffer:
+   .e_buffer:
    mov    rax, -1         ; Set the error code for insufficient buffer data.
    retn                   ; Return to caller.
