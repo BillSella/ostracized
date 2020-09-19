@@ -1,4 +1,4 @@
-SOURCE=test.c decode_tlv.h decode_tlv.s
+SOURCE=main.c test.c test.h decode_tlv.h decode_tlv.s
 OBJECT=$(patsubst %.c, %.o, $(filter %.c, $(SOURCE))) $(patsubst %.s, %.o, $(filter %.s, $(SOURCE)))
 TARGET=test
 
@@ -19,8 +19,15 @@ CC=gcc
 $(TARGET): $(OBJECT)
 	$(CC) -o $@ $^
 
-all: $(TARGET)
+boot: boot.s
+	$(ASM) -g -fbin -o boot.bin $<
+
+all: $(TARGET) boot
+
+run: boot
+	qemu-system-x86_64 boot.bin
 
 clean:
 	rm -f $(TARGET)
+	rm -f *.bin
 	rm -f *.o

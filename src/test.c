@@ -1,59 +1,57 @@
 #include "decode_tlv.h"
 
+#include <sys/time.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static int callback(const char * value, ssize_t length, uint8_t type, uint64_t tag) {
-	ssize_t i;
-
-	printf("Type:   %02x\n", (unsigned char)(type));
-	printf("Tag:    %lu\n", tag);
-	printf("Length: %ld\n", length);
-	printf("Value:  ");
-
-	for (i = 0; i < length; i++) {
-		printf("%02x ", (unsigned char)(value[i]));
-	}
-	printf("\n");
-
 	return 0;
 }
 
-int main(int argc, char ** argv) {
-	char buffer[4096];
-	int  i, j, n, o;
+static int parse(char * buffer, int length, const char * string) {
+	int n = strlen(string);
+	int i = 0;
+	int o = 0;
 
-	for (i = 1; i < argc; i++) {
-		n = strlen(argv[i]);
-		o = 0;
-
-		for (j = 0; j < n; j++) {
-			switch (argv[i][j]) {
+	for (i = 0; i < n; i++) {
+		if (i < length) {
+			switch (string[i]) {
 				case ' ':
 					break;
-
+	
 				case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-					buffer[o >> 1] = (o & 0x01) ? (buffer[o >> 1] | (argv[i][j] - '0')) : ((argv[i][j] - '0') << 4);
+					buffer[o >> 1] = (o & 0x01) ? (buffer[o >> 1] | (string[i] - '0')) : ((string[i] - '0') << 4);
 					o += 1;
 					break;
-
+	
 				case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
-					buffer[o >> 1] = (o & 0x01) ? (buffer[o >> 1] | (10 + argv[i][j] - 'A')) : ((10 + argv[i][j] - 'A') << 4);
+					buffer[o >> 1] = (o & 0x01) ? (buffer[o >> 1] | (10 + string[i] - 'A')) : ((10 + string[i] - 'A') << 4);
 					o += 1;
 					break;
-
+	
 				case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
-					buffer[o >> 1] = (o & 0x01) ? (buffer[o >> 1] | (10 + argv[i][j] - 'a')) : ((10 + argv[i][j] - 'a') << 4);
+					buffer[o >> 1] = (o & 0x01) ? (buffer[o >> 1] | (10 + string[i] - 'a')) : ((10 + string[i] - 'a') << 4);
 					o += 1;
 					break;
-
+	
 				default:
-					printf("test %d: invalid character '%c'\n", i, argv[i][j]);
 					return -1;
 			}
+		} else {
+			return -1;
 		}
-		printf("test %d: %s\n", i, argv[i]);
-		printf(" + %s\n", decode_tlv(buffer, 1 + (o >> 1), callback) ? "FAIL" : "PASS");
 	}
-	return 0;
+	return 1 + (o >> 1);
+}
+
+int test(const char * description, const char * encoded) {
+	char buffer[4096];
+	int  n;
+
+	if ((n = parse(buffer, sizeof(buffer), encoded)) > 0) {
+		return decode_tlv(buffer, n, callback);
+	}
+	printf("INVALID TEST: %s (%s)\n", description, encoded);
+	abort();
 }

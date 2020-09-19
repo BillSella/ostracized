@@ -14,6 +14,14 @@ org  0x7c00             ; Start output of bits at offset 0x7c00.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Boots the operating system.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+init:
+  jmp  ostracized       ; Jump to the boot code.
+
+boot_sector:
+  ;
+  ; Define Boot Sector Here
+  ;
+
 ostracized:
   mov  si, boot_message ; Load the boot message and print to screen.
   call print_tty        ;
@@ -21,12 +29,24 @@ ostracized:
   call check_cpuid      ; Validate the CPUID instruction is available.
   call check_flags      ; Validate this is a 64 bit capable processor.
 
+  call protected_mode   ; Switch to protected mode.
+
 shutdown:
   mov  si, halt_message ; Load the halt message and print to screen.
   call print_tty        ;
 
-  cli                   ; Clear
+  cli                   ; Disable interrupts.
   hlt                   ; Halt the machine.
+
+protected_mode:
+  cli                   ; Disable interrupts.
+  lgdt [gdt_base]       ; Load the global descriptor table.
+
+  mov  eax, cr0         ; Set the protection bit in control register 0.
+  or    al, 0           ;
+  mov  cr0, eax         ;
+
+  jmp  shutdown         ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Print a message to the screen in TTY mode.
@@ -82,13 +102,15 @@ check_cpuid:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Determine if the CPU supports all required CPU features.
+; - 64 Bit Long Mode
+; - VMX Instruction Set
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 check_flags:
   mov   eax, 0x80000000 ; Call the CPUID instruction.
   cpuid                 ;
 
-  cmp   eax, 0x80000001 ; Check CPU identifier to determine if it is new enough
-  jb    .fail_64bit     ; to support long mode.
+  cmp   eax, 0x80000001 ; Check CPU identifier to determine if it supports the
+  jb    .fail_64bit     ; extended information query.
 
   mov   eax, 0x80000001 ; Call the CPUID instruction for extended information.
   cpuid                 ;
@@ -115,6 +137,21 @@ check_flags:
   call print_tty        ;
 
   jmp  shutdown         ; Halt the machine.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; The global descriptor table.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+gdt_base:
+  dw 0x0000             ; The table size.
+  dd 0x00000000         ; The table offset.
+.entry:
+  dw 0x0000             ; The table entry limit 0:15.
+  dw 0x0000             ; The table entry base 0:15.
+  db 0x00               ; The table entry base 16:23.
+  db 0x00               ; The table entry access byte.
+  db 0x00               ; The table entry limit 16:19.
+  db 0x00               ; The table entry flags.
+  db 0x00               ; The Table entry base 24:31.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Message to display on boot.
@@ -147,3 +184,8 @@ fail_vmx:
 
 times 510 - ($-$$) db 0 ; Zero pad the binary.
 dw 0xaa55               ; Mark the binary as a bootloader sector.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Second stage boot loader.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+second_stage:
