@@ -8,19 +8,17 @@
 section .text
 global  ostracized      ; The bootloader execution start point.
 
-bits 16                 ; Set to 16-bit mode.
-org  0x7c00             ; Start output of bits at offset 0x7c00.
+[ORG  0x7c00]            ; Start output of bits at offset 0x7c00.
+[BITS 16]                ; Set to 16-bit mode.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Boots the operating system.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 init:
-  jmp  ostracized       ; Jump to the boot code.
-
-boot_sector:
-  ;
-  ; Define Boot Sector Here
-  ;
+  xor  eax, eax         ;
+  mov   dx, ax          ; Set data segment to start of binary.
+  mov   ss, ax          ; Set stack segment to start of binary.
+  mov   sp, 0x8000      ; Set stack pointer past code.
 
 ostracized:
   mov  si, boot_message ; Load the boot message and print to screen.
@@ -38,15 +36,25 @@ shutdown:
   cli                   ; Disable interrupts.
   hlt                   ; Halt the machine.
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Enter protected mode on the processor and jump to the second stage boot
+; loader.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 protected_mode:
+  mov   si, mode_switch ; Print the protected mode message.
+  call print_tty        ;
+
   cli                   ; Disable interrupts.
-  lgdt [gdt_base]       ; Load the global descriptor table.
+  lgdt [gdt_handle]     ; Load the global descriptor table.
 
   mov  eax, cr0         ; Set the protection bit in control register 0.
-  or    al, 0           ;
+  or    al, 1           ;
   mov  cr0, eax         ;
 
-  jmp  shutdown         ;
+  mov   bx, 0x00        ; Select descriptor 1.
+  mov   ds, bx          ;
+
+  jmp  08h:second_stage ; Perform a far jump to seletor 08h.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Print a message to the screen in TTY mode.
@@ -122,7 +130,7 @@ check_flags:
   cpuid                 ;
 
   test  ecx, 1 << 5     ; Check the VMX flag.
-  jz    .fail_vmx       ;
+; jz    .fail_vmx       ;
 
   retn                  ;
 
@@ -139,27 +147,17 @@ check_flags:
   jmp  shutdown         ; Halt the machine.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; The global descriptor table.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-gdt_base:
-  dw 0x0000             ; The table size.
-  dd 0x00000000         ; The table offset.
-.entry:
-  dw 0x0000             ; The table entry limit 0:15.
-  dw 0x0000             ; The table entry base 0:15.
-  db 0x00               ; The table entry base 16:23.
-  db 0x00               ; The table entry access byte.
-  db 0x00               ; The table entry limit 16:19.
-  db 0x00               ; The table entry flags.
-  db 0x00               ; The Table entry base 24:31.
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Message to display on boot.
+; Message table for boot display.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 boot_message:
   db "|", 0x0d, 0x0a
   db "| Ostracized, 1.0 - 64 Bit, Multi-Core", 0x0d, 0x0a
   db "| Copyright 2020, Bill Sella. All Rights Reserved.", 0x0d, 0x0a
+  db 0
+
+mode_switch:
+  db "|", 0x0d, 0x0a
+  db "| Entering Protected Mode", 0x0d, 0x0a
   db 0
 
 halt_message:
@@ -182,10 +180,68 @@ fail_vmx:
   db "| VMX Instructions Not Supported", 0x0d, 0x0a
   db 0
 
-times 510 - ($-$$) db 0 ; Zero pad the binary.
-dw 0xaa55               ; Mark the binary as a bootloader sector.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; The global descriptor table.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+gdt:
+  dq 0x0000000000000000 ; The null segment.
+
+.code:
+  dw 0xffff             ; The table entry limit 0:15.
+  dw 0x0000             ; The table entry base 0:15.
+  db 0x00               ; The table entry base 16:23.
+  db 0x9a               ; The table entry access byte: 1 00 1 1 0 1 0.
+                        ;   Present:          1 (Set)
+                        ;   Privelege Level: 00 (Ring 0)
+                        ;   Segment Type:     1 (Code)
+                        ;   Executable:       1 (True)
+                        ;   Direction:        0 (Only Callable from Ring 0)
+                        ;   Readable:         1 (Allowed / Read-Only)
+                        ;   Acessed Bit:      0 (Default)
+  db 0xf4               ; The table entry limit 16:19.
+                        ; The table entry flags: 1 1 1 0
+                        ;   Granularity:      0 (Byte Granularity)
+                        ;   Size:             1 (Protected Mode)
+                        ;   Long Mode:        0 (Disabled)
+                        ;   Rserved:          0 (Zero)
+  db 0x00               ; The Table entry base 24:31.
+
+.data:
+  dw 0xffff             ; The table entry limit 0:15.
+  dw 0x0000             ; The table entry base 0:15.
+  db 0x00               ; The table entry base 16:23.
+  db 0x80               ; The table entry access byte: 1 00 0 0 0 0 0.
+                        ;   Present:          1 (Set)
+                        ;   Privelege Level: 00 (Ring 0)
+                        ;   Segment Type:     0 (Data)
+                        ;   Executable:       0 (False)
+                        ;   Direction:        0 (Only Accessable from Ring 0)
+                        ;   Writable:         0 (Read-Only)
+                        ;   Acessed Bit:      0 (Default)
+  db 0xf4               ; The table entry limit 16:19.
+                        ; The table entry flags: 1 1 1 0
+                        ;   Granularity:      0 (Byte Granularity)
+                        ;   Size:             1 (Protected Mode)
+                        ;   Long Mode:        0 (Disabled)
+                        ;   Rserved:          0 (Zero)
+  db 0x00               ; The Table entry base 24:31.
+
+.task:
+
+gdt_handle:
+  dw gdt_handle - gdt   ; The table length.
+  dd gdt                ; The table location.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Second stage boot loader.
+; Protected Mode Section
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+[BITS 32]
 second_stage:
+  cli
+  hlt
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Zero pad the image and set the bootloader signature.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+times 510 - ($-$$) db 0 ; Zero pad the binary.
+dw    0xaa55            ; Mark the binary as a bootloader sector.
