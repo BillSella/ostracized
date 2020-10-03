@@ -27,4 +27,22 @@
 */
 int decode_tlv(const char * buffer, ssize_t length, int callback(const char * value, ssize_t length, uint8_t type, uint64_t tag));
 
+int decode_str(const char * buffer, ssize_t length, int callback(const char * value));
+
+int decode_oid(const char * buffer, ssize_t length, int callback(const char * value));
+
+int decode_ip4(const char * buffer, ssize_t length, int callback(const char * value));
+
+int decode_ip6(const char * buffer, ssize_t length, int callback(const char * value));
+
+/*
+	Decode a BER encoded integer (INTEGER, Integer32, Unsigned32, Counter32, Counter64, Gague32, TimeTicks).
+*/
+int decode_s64(const char * buffer, ssize_t length, int callback(uint64_t value));
+
+/*
+	Decode a BER encoded integer (INTEGER, Integer32, Unsigned32, Counter32, Counter64, Gague32, TimeTicks).
+*/
+int decode_u64(const char * buffer, ssize_t length, int callback(uint64_t value));
+
 #endif

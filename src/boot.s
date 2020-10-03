@@ -1,28 +1,58 @@
+%ifndef __BOOT_S__
+%define __BOOT_S__
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Author:  Bill Sella <bill.sella@gmail.com>
-; Updated: 2020-09-12
-; License: GPL 2.0
+; A simple first stage bootloader which loads the second stage bootloader,
+; changes screen resolution, and jumps to protected mode.
 ;
-; Define global exports for public function calls in this module.
+; Author:  Bill Sella <bill.sella@gmail.com>
+; License: GPL 2.0
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+[ORG  0x7c00]            ; Start output of bits at offset 0x7c00.
+
 section .text
 global  ostracized      ; The bootloader execution start point.
 
-[ORG  0x7c00]            ; Start output of bits at offset 0x7c00.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Display a TTY message using the BIOS.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+%macro PRINT_TTY 1
+	mov  si, %1          ; Load the message to display.
+   call print_tty       ; Call the function.
+%endmacro
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Display a register to TTY using the BIOS.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+%macro PRINT_R16 1
+  mov   si, %1
+  call  print_r16
+%endmacro
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Display a TTY message using the BIOS and halt the machine.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+%macro TERMINATE 1
+   PRINT_TTY(%1)        ; Print the error message.
+   jmp  shutdown        ; Halt the machine.
+%endmacro
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 16-Bit Code Section
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 [BITS 16]                ; Set to 16-bit mode.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Boots the operating system.
+; Bootloader entry point.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-init:
+ostracized:
   xor  eax, eax         ;
   mov   dx, ax          ; Set data segment to start of binary.
   mov   ss, ax          ; Set stack segment to start of binary.
-  mov   sp, 0x8000      ; Set stack pointer past code.
+  mov   sp, 0x17c00     ; Set stack pointer past code.
 
-ostracized:
-  mov  si, boot_message ; Load the boot message and print to screen.
-  call print_tty        ;
+  call load_bootloader  ; Load the full bootloader image from disk.
+  call init_resolution  ; Set the video resolution.
 
   call check_cpuid      ; Validate the CPUID instruction is available.
   call check_flags      ; Validate this is a 64 bit capable processor.
@@ -30,51 +60,39 @@ ostracized:
   call protected_mode   ; Switch to protected mode.
 
 shutdown:
-  mov  si, halt_message ; Load the halt message and print to screen.
-  call print_tty        ;
+  PRINT_TTY(halt)       ; Print the halt message to the screen.
 
   cli                   ; Disable interrupts.
   hlt                   ; Halt the machine.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Enter protected mode on the processor and jump to the second stage boot
-; loader.
+; Load all sectors to pull the entire 64KB boot loader into RAM.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-protected_mode:
-  mov   si, mode_switch ; Print the protected mode message.
-  call print_tty        ;
+load_bootloader:
+  mov  ah, 0x02         ; BIOS disk read sectors function.
+  mov  al, 0x7f         ; Number of sectors to read.
 
-  cli                   ; Disable interrupts.
-  lgdt [gdt_handle]     ; Load the global descriptor table.
+  mov  dl, 0x80         ; Set the drive to HDD number 1.
+  mov  dh, 0x00         ; Set the head number.
 
-  mov  eax, cr0         ; Set the protection bit in control register 0.
-  or    al, 1           ;
-  mov  cr0, eax         ;
+  mov  ch, 0x00         ; Set the cylinder number.
+  mov  cl, 0x02         ; Set the start sector for the read.
 
-  mov   bx, 0x00        ; Select descriptor 1.
-  mov   ds, bx          ;
+  mov  bx, second_stage ; Set the read destination address.
+  int  0x13             ; Read from the disk.
 
-  jmp  08h:second_stage ; Perform a far jump to seletor 08h.
+  cmp  ax, 0x007f       ; Retry the read if failure, else return.
+  jnz  load_bootloader  ;
+  retn                  ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Print a message to the screen in TTY mode.
-;
-; Parameters
-;    [si] message - the address of the message to print.
+; Initialize the resolution of the screen.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-print_tty:
-  mov   ah, 0x0e        ; Set TTY write mode.
+init_resolution:
+  mov  ax, 0x4f02       ; Set the VESA resolution to 1280x1024 (24 Bit).
+  mov  bx, 0x011b       ;
 
-.next:
-  lodsb                 ;
-
-  or    al, al          ; Check for end of string (NULL).
-  jz    .exit           ;
-
-  int   0x10            ; Print the character and advance to the next one.
-  jmp   .next           ;
-
-.exit:
+  int  0x10             ; Adjust the resolution.
   retn                  ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -103,10 +121,7 @@ check_cpuid:
   retn                  ;
 
 .not_available:
-  mov  si, fail_cpuid   ; Print the CPUID instruction check fail.
-  call print_tty        ;
-
-  jmp  shutdown         ; Halt the machine.
+  TERMINATE(fail_cpuid) ; Halt the machine.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Determine if the CPU supports all required CPU features.
@@ -135,32 +150,32 @@ check_flags:
   retn                  ;
 
 .fail_64bit:
-  mov  si, fail_64bit   ; Print the 64 bit check fail.
-  call print_tty        ;
-
-  jmp  shutdown         ; Halt the machine.
+  TERMINATE(fail_64bit) ; Halt the machine.
 
 .fail_vmx:
-  mov  si, fail_vmx     ; Print the VMX check fail.
-  call print_tty        ;
+  TERMINATE(fail_vmx)   ; Halt the machine.
 
-  jmp  shutdown         ; Halt the machine.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Enter protected mode on the processor and jump to the second stage boot
+; loader.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+protected_mode:
+  cli                   ; Disable interrupts.
+  lgdt [gdt_handle]     ; Load the global descriptor table.
+
+  mov  eax, cr0         ; Set the protection bit in control register 0.
+  or    al, 1           ;
+  mov  cr0, eax         ;
+
+  mov   bx, 0x00        ; Select descriptor 1.
+  mov   ds, bx          ;
+
+  jmp  08h:second_stage ; Perform a far jump to seletor 08h.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Message table for boot display.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-boot_message:
-  db "|", 0x0d, 0x0a
-  db "| Ostracized, 1.0 - 64 Bit, Multi-Core", 0x0d, 0x0a
-  db "| Copyright 2020, Bill Sella. All Rights Reserved.", 0x0d, 0x0a
-  db 0
-
-mode_switch:
-  db "|", 0x0d, 0x0a
-  db "| Entering Protected Mode", 0x0d, 0x0a
-  db 0
-
-halt_message:
+halt:
   db "|", 0x0d, 0x0a
   db "| System Halted", 0x0d, 0x0a
   db 0
@@ -178,6 +193,11 @@ fail_64bit:
 fail_vmx:
   db "|", 0x0d, 0x0a
   db "| VMX Instructions Not Supported", 0x0d, 0x0a
+  db 0
+
+mark:
+  db "|", 0x0d, 0x0a
+  db "| MARKER", 0x0d, 0x0a
   db 0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -233,15 +253,15 @@ gdt_handle:
   dd gdt                ; The table location.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Protected Mode Section
+; Include debug functons.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-[BITS 32]
-second_stage:
-  cli
-  hlt
+%include "debug.s"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Zero pad the image and set the bootloader signature.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 times 510 - ($-$$) db 0 ; Zero pad the binary.
 dw    0xaa55            ; Mark the binary as a bootloader sector.
+
+second_stage:
+%endif

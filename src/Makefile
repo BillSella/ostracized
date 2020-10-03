@@ -16,16 +16,18 @@ CC=gcc
 %.o : %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
+all: boot $(TARGET)
+	qemu-system-x86_64 -drive file=ostracized.bin,format=raw,index=0,media=disk
+
+boot: boot.s second_stage.s
+	$(ASM) -g -fbin -o boot.bin boot.s
+	$(ASM) -g -fbin -o second_stage.bin second_stage.s
+
+	cat boot.bin > ostracized.bin
+	cat second_stage.bin >> ostracized.bin
+
 $(TARGET): $(OBJECT)
 	$(CC) -o $@ $^
-
-boot: boot.s
-	$(ASM) -g -fbin -o boot.bin $<
-
-all: $(TARGET) boot
-
-run: boot
-	qemu-system-x86_64 boot.bin
 
 clean:
 	rm -f $(TARGET)
