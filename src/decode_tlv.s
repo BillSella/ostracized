@@ -26,12 +26,16 @@ section .text
 ;       (rsi) length   - The length of the value buffer.
 ;       (rdx) type     - The first byte of the type.
 ;       (rcx) tag      - The full type tag identifier.
+;       (r8)  context  - The abstract context.
+;
+;    (rcx) context  - An abstract context to pass to the callback.
 ;
 ; Returns the result of callback on success, or negative error code on failure.
 ;    -1 - Insufficient data in buffer to decode.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 decode_tlv:
-   mov     r8, rdx        ; Make room for callback parameters.
+   mov     r8, rcx        ; Move the abstract context to the callback parameter.
+   mov     r9, rdx        ; Make room for callback parameters.
    xor    rcx, rcx        ; Zero the tag parameter for the callback.
    xor    rdx, rdx        ; Zero the type parameter for the callback.
 
@@ -96,7 +100,7 @@ decode_tlv:
    jle    .e_buffer       ; Insufficient data in buffer for value.
 
    mov    rsi, rbx        ; Set the value length.
-   call   r8              ; Execute the callback function.
+   call   r9              ; Execute the callback function.
    retn                   ; Return to caller with callback return value (rax).
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -106,7 +110,7 @@ decode_tlv:
    xor    rax, rax        ; Zero the length;
 
    mov    rsi, rbx        ; Set the value length.
-   call   r8              ; Execute the callback function.
+   call   r9              ; Execute the callback function.
 
    xor    rax, rax        ; Set return code to success (0).
    retn                   ; Return to caller.
