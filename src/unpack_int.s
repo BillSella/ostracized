@@ -50,7 +50,7 @@ section .text
 ;
 ;    (rdx) type     - The first byte of the BER encoded TLV type field.
 ;    (rcx) tag      - The tag field of the TLV type.
-;     (r9) result   - A pointer to the integer to unpack the value into.
+;     (r8) result   - A pointer to the integer to unpack the value into.
 ;
 ; Returns zero on success or a negative error code on failure.
 ;    -1 - Insufficient data in buffer to decode.
@@ -87,7 +87,7 @@ unpack_u64:
    mov    rdx,  exit.i64  ; Set the function exit point and jump to the main
 
 unpack_int:
-   or      r9,  r9        ; Ensure the supplied value is not NULL.
+   or      r8,  r8        ; Ensure the supplied value is not NULL.
    jz     error.e_result  ;
 
    add    rdi, rsi        ; Advance to the last byte.
@@ -105,25 +105,22 @@ unpack_int:
    jmp    .loop           ;
 
 exit:
-   jmp    rdx             ; Jump to the appropriate exit block. TODO: adjust to
-                          ; self modifying code to execute the appropriate
-                          ; machine language section within a db and remove the
-                          ; jump from the execution path.
+   jmp    rdx             ; Jump to the appropriate exit block.
 
    .i08:
-   mov   [r9], al         ;
+   mov   [r8], al         ;
    retn                   ;
 
    .i16:
-   mov   [r9], ax         ;
+   mov   [r8], ax         ;
    retn                   ;
 
    .i32:
-   mov   [r9], eax        ;
+   mov   [r8], eax        ;
    retn                   ;
 
    .i64:
-   mov   [r9], rax        ;
+   mov   [r8], rax        ;
    retn                   ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -1,8 +1,15 @@
 %ifndef __DEBUG_S__
 %define __DEBUG_S__
 
-section .text
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Debug functions.
+;
+; Author:  Bill Sella <bill.sella@gmail.com>
+; License: GPL 2.0
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 [BITS 16]                           ; Set to 16-bit mode.
+
+section .text
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Display a 16 bit register value using the BIOS.

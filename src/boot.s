@@ -8,9 +8,11 @@
 ; Author:  Bill Sella <bill.sella@gmail.com>
 ; License: GPL 2.0
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-[ORG  0x7c00]            ; Start output of bits at offset 0x7c00.
+[ORG  0x7c00]           ; Start output of bits at offset 0x7c00.
+[BITS 16]               ; Set to 16-bit mode.
 
 section .text
+
 global  ostracized      ; The bootloader execution start point.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -25,8 +27,8 @@ global  ostracized      ; The bootloader execution start point.
 ; Display a register to TTY using the BIOS.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 %macro PRINT_R16 1
-  mov   si, %1
-  call  print_r16
+  mov   si, %1          ; Load the register to display.
+  call  print_r16       ; Call the function.
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -38,18 +40,14 @@ global  ostracized      ; The bootloader execution start point.
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; 16-Bit Code Section
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-[BITS 16]                ; Set to 16-bit mode.
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Bootloader entry point.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ostracized:
-  xor  eax, eax         ;
-  mov   dx, ax          ; Set data segment to start of binary.
-  mov   ss, ax          ; Set stack segment to start of binary.
-  mov   sp, 0x17c00     ; Set stack pointer past code.
+  xor  eax, eax         ; Set data segment to start of binary.
+  mov   ds, ax          ;
+  mov   ax, 0x0bdd      ; Set the stack segment past the bootloader.
+  mov   ss, ax          ;
+  mov   sp, 0x0000      ;
 
   call load_bootloader  ; Load the full bootloader image from disk.
   call init_resolution  ; Set the video resolution.
@@ -66,31 +64,35 @@ shutdown:
   hlt                   ; Halt the machine.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Load all sectors to pull the entire 64KB boot loader into RAM.
+; Load all second stage sectors to pull the entire 16KB boot loader into RAM.
+;
+; Parameters
+;   [dl] device - The device number to read second stage from.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 load_bootloader:
-  mov  ah, 0x02         ; BIOS disk read sectors function.
-  mov  al, 0x7f         ; Number of sectors to read.
-
-  mov  dl, 0x80         ; Set the drive to HDD number 1.
-  mov  dh, 0x00         ; Set the head number.
+  mov  bx, 0x7e00       ; Set the read destination address.
 
   mov  ch, 0x00         ; Set the cylinder number.
   mov  cl, 0x02         ; Set the start sector for the read.
+  mov  dh, 0x00         ; Set the head to 0.
 
-  mov  bx, second_stage ; Set the read destination address.
+.retry:
+  mov  ah, 0x02         ; BIOS disk read sectors function.
+  mov  al, 0x1f         ; Number of sectors to read.
+
   int  0x13             ; Read from the disk.
 
-  cmp  ax, 0x007f       ; Retry the read if failure, else return.
-  jnz  load_bootloader  ;
+  cmp  ax, 0x001f       ; Retry the read if failure, else return.
+  jnz  .retry           ;
+
   retn                  ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialize the resolution of the screen.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 init_resolution:
-  mov  ax, 0x4f02       ; Set the VESA resolution to 1280x1024 (24 Bit).
-  mov  bx, 0x011b       ;
+  mov  ax, 0x4f02       ; Set the VESA resolution to 1280x1024 (Text/256 Color).
+  mov  bx, 0x0107       ;
 
   int  0x10             ; Adjust the resolution.
   retn                  ;
@@ -145,7 +147,7 @@ check_flags:
   cpuid                 ;
 
   test  ecx, 1 << 5     ; Check the VMX flag.
-; jz    .fail_vmx       ;
+  jz    .fail_vmx       ; Disabled for testing.
 
   retn                  ;
 
@@ -163,41 +165,32 @@ protected_mode:
   cli                   ; Disable interrupts.
   lgdt [gdt_handle]     ; Load the global descriptor table.
 
+  mov   bx, 0x00        ; Select descriptor 1.
+  mov   ds, bx          ;
+
   mov  eax, cr0         ; Set the protection bit in control register 0.
   or    al, 1           ;
   mov  cr0, eax         ;
 
-  mov   bx, 0x00        ; Select descriptor 1.
-  mov   ds, bx          ;
-
-  jmp  08h:second_stage ; Perform a far jump to seletor 08h.
+  jmp  08h:0x7e00       ; Perform a far jump to the second stage bootloader.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Message table for boot display.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 halt:
-  db "|", 0x0d, 0x0a
-  db "| System Halted", 0x0d, 0x0a
+  db "System Halted", 0x0d, 0x0a
   db 0
 
 fail_cpuid:
-  db "|", 0x0d, 0x0a
-  db "| CPU Not Supported", 0x0d, 0x0a
+  db "CPU Not Supported", 0x0d, 0x0a
   db 0
 
 fail_64bit:
-  db "|", 0x0d, 0x0a
-  db "| CPU Not 64 Bit Long Mode Capable", 0x0d, 0x0a
+  db "CPU Not 64 Bit Long Mode Capable", 0x0d, 0x0a
   db 0
 
 fail_vmx:
-  db "|", 0x0d, 0x0a
-  db "| VMX Instructions Not Supported", 0x0d, 0x0a
-  db 0
-
-mark:
-  db "|", 0x0d, 0x0a
-  db "| MARKER", 0x0d, 0x0a
+  db "VMX Instructions Not Supported", 0x0d, 0x0a
   db 0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -218,7 +211,7 @@ gdt:
                         ;   Direction:        0 (Only Callable from Ring 0)
                         ;   Readable:         1 (Allowed / Read-Only)
                         ;   Acessed Bit:      0 (Default)
-  db 0xf4               ; The table entry limit 16:19.
+  db 0xcf               ; The table entry limit 16:19.
                         ; The table entry flags: 1 1 1 0
                         ;   Granularity:      0 (Byte Granularity)
                         ;   Size:             1 (Protected Mode)
@@ -230,15 +223,15 @@ gdt:
   dw 0xffff             ; The table entry limit 0:15.
   dw 0x0000             ; The table entry base 0:15.
   db 0x00               ; The table entry base 16:23.
-  db 0x80               ; The table entry access byte: 1 00 0 0 0 0 0.
+  db 0x92               ; The table entry access byte: 1 00 0 0 0 1 0.
                         ;   Present:          1 (Set)
                         ;   Privelege Level: 00 (Ring 0)
                         ;   Segment Type:     0 (Data)
                         ;   Executable:       0 (False)
                         ;   Direction:        0 (Only Accessable from Ring 0)
-                        ;   Writable:         0 (Read-Only)
+                        ;   Writable:         1 (Allowed)
                         ;   Acessed Bit:      0 (Default)
-  db 0xf4               ; The table entry limit 16:19.
+  db 0xcf               ; The table entry limit 16:19.
                         ; The table entry flags: 1 1 1 0
                         ;   Granularity:      0 (Byte Granularity)
                         ;   Size:             1 (Protected Mode)
@@ -258,10 +251,10 @@ gdt_handle:
 %include "debug.s"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Zero pad the image and set the bootloader signature.
+; Zero pad the boot sector and set the bootloader signature.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-times 510 - ($-$$) db 0 ; Zero pad the binary.
-dw    0xaa55            ; Mark the binary as a bootloader sector.
+times 510 - ($-$$) db 0 ; Zero pad the binary to 512 bytes and add bootsector
+dw    0xaa55            ; marker to end of file.
 
-second_stage:
+%include "second_stage.s"
 %endif

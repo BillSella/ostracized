@@ -1,4 +1,4 @@
-SOURCE=main.c test.c test.h decode_tlv.h decode_tlv.s
+SOURCE=main.c test.c test.h decode_tlv.h decode_tlv.s unpack_int.s unpack_str.s
 OBJECT=$(patsubst %.c, %.o, $(filter %.c, $(SOURCE))) $(patsubst %.s, %.o, $(filter %.s, $(SOURCE)))
 TARGET=test
 
@@ -17,19 +17,19 @@ CC=gcc
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 all: boot $(TARGET)
-	qemu-system-x86_64 -drive file=ostracized.bin,format=raw,index=0,media=disk
+#	qemu-system-x86_64 -drive file=ostracized.bin,format=raw,index=0,media=disk
+	dd if=/dev/zero of=floppy.img bs=512 count=2880
+	dd if=ostracized.bin of=floppy.img bs=512 conv=notrunc
+	bochs -q -f bochsrc
 
-boot: boot.s second_stage.s
-	$(ASM) -g -fbin -o boot.bin boot.s
-	$(ASM) -g -fbin -o second_stage.bin second_stage.s
-
-	cat boot.bin > ostracized.bin
-	cat second_stage.bin >> ostracized.bin
+boot: boot.s second_stage.s debug.s
+	$(ASM) -g -fbin -o ostracized.bin boot.s
 
 $(TARGET): $(OBJECT)
 	$(CC) -o $@ $^
 
 clean:
 	rm -f $(TARGET)
+	rm -f *.img
 	rm -f *.bin
 	rm -f *.o
