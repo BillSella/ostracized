@@ -78,20 +78,14 @@ term_text:
 
   mov al, byte [edi]                   ; Determine if the end of string marker
   cmp al, 0x00                         ; was hit (NULL).
-  jz  .zero                            ;
-  inc edi                              ;
+  jz  .null                            ;
 
+  inc edi                              ; Increment to next character.
+
+.null:
   mov [ecx], ax                        ; Write the character to the screen.
   add ecx, 2                           ;
   jmp .line                            ;
-
-.zero:
-  cmp ecx, 0x000b8000 + (25 * 80 * 2)  ; Determine if the line is off the
-  jz  .exit                            ; screen.
-
-  mov [ecx], ax                        ; Write the empty character.
-  add ecx, 2                           ;
-  jmp .zero                            ;
 
 .exit
   ret                                  ; Logging completed.
