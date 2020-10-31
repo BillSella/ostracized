@@ -2,8 +2,8 @@
 %define __BOOT_S__
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; A simple first stage bootloader which loads the second stage bootloader,
-; changes screen resolution, and jumps to protected mode.
+; A simple first stage bootloader which loads the second stage bootloader and
+; jumps to protected mode.
 ;
 ; Author:  Bill Sella <bill.sella@gmail.com>
 ; License: GPL 2.0
@@ -50,7 +50,6 @@ ostracized:
   mov   sp, 0x0000      ;
 
   call load_bootloader  ; Load the full bootloader image from disk.
-  call init_resolution  ; Set the video resolution.
 
   call check_cpuid      ; Validate the CPUID instruction is available.
   call check_flags      ; Validate this is a 64 bit capable processor.
@@ -85,16 +84,6 @@ load_bootloader:
   cmp  ax, 0x001f       ; Retry the read if failure, else return.
   jnz  .retry           ;
 
-  retn                  ;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Initialize the resolution of the screen.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-init_resolution:
-  mov  ax, 0x4f02       ; Set the VESA resolution to 1280x1024 (Text/256 Color).
-  mov  bx, 0x0107       ;
-
-  int  0x10             ; Adjust the resolution.
   retn                  ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -143,19 +132,10 @@ check_flags:
   test  edx, 1 << 29    ; Check the long mode flag.
   jz    .fail_64bit     ;
 
-  mov   eax, 0x00000001 ; Call the CPUID instruction for feature information.
-  cpuid                 ;
-
-  test  ecx, 1 << 5     ; Check the VMX flag.
-  jz    .fail_vmx       ; Disabled for testing.
-
   retn                  ;
 
 .fail_64bit:
   TERMINATE(fail_64bit) ; Halt the machine.
-
-.fail_vmx:
-  TERMINATE(fail_vmx)   ; Halt the machine.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Enter protected mode on the processor and jump to the second stage boot
@@ -187,10 +167,6 @@ fail_cpuid:
 
 fail_64bit:
   db "CPU Not 64 Bit Long Mode Capable", 0x0d, 0x0a
-  db 0
-
-fail_vmx:
-  db "VMX Instructions Not Supported", 0x0d, 0x0a
   db 0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
