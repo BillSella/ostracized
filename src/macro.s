@@ -2,6 +2,25 @@
 %define __MACRO_S__
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Log a text message to the terminal.
+;
+; Parameters
+;   1 - The message to log (80 characters maximum).
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+%macro BOLD 1
+  push edi
+  jmp  %%code
+
+  %%data:
+    db %1, 0
+  %%code:
+
+  mov  edi, %%data
+  call term_bold
+  pop  edi
+%endmacro
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Log an informational message to the terminal.
 ;
 ; Parameters
@@ -21,7 +40,7 @@
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Log an informational message to the terminal.
+; Log a warning message to the terminal.
 ;
 ; Parameters
 ;   1 - The message to log (80 characters maximum).
@@ -40,7 +59,7 @@
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Log an informational message to the terminal.
+; Log a debugging message to the terminal.
 ;
 ; Parameters
 ;   1 - The message to log (80 characters maximum).

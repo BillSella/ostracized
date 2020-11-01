@@ -23,14 +23,23 @@ second_stage:
   mov   ss, ax          ;
   mov   sp, 0x4098      ; Adjust stack pointer past 16KB image.
 
-  INFO { 'Halting' }
+booted:
+  BOLD "################################################################################"
+  BOLD "# ostracized 1.0.0                                                             #"
+  BOLD "#   copyright 2020, bill sella                                                 #"
+  BOLD "################################################################################"
+  INFO ""
 
+  INFO ""
+  WARN "system halted"
   hlt
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Include additional functons.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 %include "log.s"
+%include "hdd.s"
+%include "eth.s"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; The interrupt descriptor table.

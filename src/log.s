@@ -34,6 +34,11 @@ term_info:
   mov  dx, 0x0700                      ; then jump to the main function block.
   jmp  term_text                       ;
 
+term_bold:
+  push edx                             ; Store the color as green on black and
+  mov  dx, 0x0200                      ; then jump to the main function block.
+  jmp  term_text                       ;
+
 term_text:
   push ecx                             ; Store register state.
   push eax                             ;
