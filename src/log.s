@@ -75,6 +75,6 @@ term_text:
   pop  eax                             ; Restore registers and return from
   pop  ecx                             ; function call.
   pop  edx                             ;
-  ret                                  ; 
+  ret                                  ;
 
 %endif

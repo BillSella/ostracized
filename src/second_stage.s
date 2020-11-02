@@ -30,6 +30,8 @@ booted:
   BOLD "################################################################################"
   INFO ""
 
+  call pci_init
+
   INFO ""
   WARN "system halted"
   hlt
@@ -38,6 +40,7 @@ booted:
 ; Include additional functons.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 %include "log.s"
+%include "pci.s"
 %include "hdd.s"
 %include "eth.s"
 
