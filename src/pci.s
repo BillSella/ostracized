@@ -49,9 +49,28 @@ pci_init:
 
   mov   dx, 0x0cfc        ; Check the device class.
   in   eax, dx            ;
-  INFO "- found"
-  BREAK
+  mov  ebx, eax           ;
+  shr  ebx, 16            ;
 
+  cmp   bh, 0x01          ; Determine if a storage controller.
+  jz   .pci_hdd           ;
+
+  cmp   bh, 0x02          ; Determine if a network controller.
+  jz   .pci_net           ;
+
+  cmp   bh, 0x06          ; Determine if a bridge device.
+  jz   .pci_net           ;
+
+  jmp .loop               ;
+
+.pci_hdd:
+  BOLD "- storage"
+  DBUG_REGISTERS          ;
+  jmp .loop               ;
+
+.pci_net:
+  BOLD "- network"
+  DBUG_REGISTERS          ;
   jmp .loop               ;
 
 .exit:
@@ -61,31 +80,5 @@ pci_init:
   pop  ecx                ;
   pop  edx                ;
   retn                    ;
-
-pci_class:
-  db 'Unclassified'
-  db 'Mass Storage Controller           ', 0, 0
-  db 'Network Controller                ', 0, 0
-  db 'Display Controller                ', 0, 0
-
-  db 'Multimedia Controller             ', 0, 0
-  db 'Memory Controller                 ', 0, 0
-  db 'Bridge Device                     ', 0, 0
-  db 'Simple Communication Controller   ', 0, 0
-
-  db 'Base System Peripheral            ', 0, 0
-  db 'Input Device Controller           ', 0, 0
-  db 'Docking Station                   ', 0, 0
-  db 'Processor                         ', 0, 0
-
-  db 'Serial Bus Controller             ', 0, 0
-  db 'Wireless Controller               ', 0, 0
-  db 'Intelligent Controller            ', 0, 0
-  db 'Satellite Communication Controller', 0, 0
-
-  db 'Encryption Controller             ', 0, 0
-  db 'Signal Processing Controller      ', 0, 0
-  db 'Processing Accellerator           ', 0, 0
-  db 'Non-Essential Instrumentation     ', 0, 0
 
 %endif

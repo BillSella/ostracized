@@ -20,9 +20,10 @@ all: boot $(TARGET)
 #	qemu-system-x86_64 -drive file=ostracized.bin,format=raw,index=0,media=disk
 	dd if=/dev/zero of=floppy.img bs=512 count=2880
 	dd if=ostracized.bin of=floppy.img bs=512 conv=notrunc
+	rm -f emptydisk.img.lock
 	bochs -q -f bochsrc
 
-boot: boot.s second_stage.s debug.s
+boot: boot.s second_stage.s debug.s log.s
 	$(ASM) -g -fbin -o ostracized.bin boot.s
 
 $(TARGET): $(OBJECT)
